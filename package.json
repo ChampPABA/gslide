@@ -1,0 +1,36 @@
+{
+  "name": "@ChampPABA/gslide",
+  "version": "0.1.0",
+  "description": "CLI tool for automating Google Slides 'Help me visualize' feature via browser automation",
+  "bin": {
+    "gslide": "./bin/gslide.mjs"
+  },
+  "scripts": {
+    "postinstall": "bash scripts/postinstall.sh"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "src/",
+    "pyproject.toml"
+  ],
+  "keywords": [
+    "google-slides",
+    "presentation",
+    "gemini",
+    "browser-automation",
+    "playwright"
+  ],
+  "author": "ChampPABA",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ChampPABA/gslide.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
