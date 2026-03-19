@@ -29,7 +29,7 @@ The skill SHALL instruct Claude to verify gslide is installed before attempting 
 
 #### Scenario: gslide not installed
 - **WHEN** Claude checks and gslide CLI is not available
-- **THEN** Claude tells user to run `npm install -g @ChampPABA/gslide`
+- **THEN** Claude tells user to run `npm install -g @champpaba/gslide`
 
 #### Scenario: gslide installed but not logged in
 - **WHEN** Claude checks and gslide is available but auth status fails
@@ -40,6 +40,6 @@ The system SHALL provide a `skills.sh` script that installs both the npm package
 
 #### Scenario: Full installation
 - **WHEN** user runs `bash skills.sh`
-- **THEN** script runs `npm install -g @ChampPABA/gslide`
+- **THEN** script runs `npm install -g @champpaba/gslide`
 - **THEN** script copies `skills/gslide.md` to `~/.claude/skills/gslide/SKILL.md`
 - **THEN** script prints success message with next steps

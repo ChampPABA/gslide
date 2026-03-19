@@ -11,7 +11,7 @@ Current state:
 ## Goals / Non-Goals
 
 **Goals:**
-- One-command install: `npm install -g @ChampPABA/gslide`
+- One-command install: `npm install -g @champpaba/gslide`
 - Zero prerequisites: auto-setup uv, Python, Playwright Chromium
 - `gslide update` for self-update
 - Claude Code skill that triggers on slide-related requests
@@ -48,7 +48,7 @@ Show step-by-step progress during postinstall so user knows what's happening dur
 
 ### 4. gslide update via npm
 
-`gslide update` command runs `npm update -g @ChampPABA/gslide` internally.
+`gslide update` command runs `npm update -g @champpaba/gslide` internally.
 
 **Why:** Simple, uses npm's existing update mechanism. Shows current vs latest version.
 

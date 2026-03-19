@@ -23,7 +23,7 @@ def update() -> None:
 
     try:
         result = subprocess.run(
-            ["npm", "view", "@ChampPABA/gslide", "version"],
+            ["npm", "view", "@champpaba/gslide", "version"],
             capture_output=True,
             text=True,
             timeout=15,
@@ -45,7 +45,7 @@ def update() -> None:
     click.echo("Updating...")
 
     proc = subprocess.run(
-        ["npm", "update", "-g", "@ChampPABA/gslide"],
+        ["npm", "update", "-g", "@champpaba/gslide"],
         timeout=120,
     )
     if proc.returncode == 0:

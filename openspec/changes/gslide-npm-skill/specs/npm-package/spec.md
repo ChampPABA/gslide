@@ -1,17 +1,17 @@
 ## ADDED Requirements
 
 ### Requirement: npm package structure
-The system SHALL provide an npm package `@ChampPABA/gslide` with a bin entry that delegates to the Python CLI.
+The system SHALL provide an npm package `@champpaba/gslide` with a bin entry that delegates to the Python CLI.
 
 #### Scenario: package.json configured correctly
 - **WHEN** user inspects package.json
-- **THEN** name is `@ChampPABA/gslide`
+- **THEN** name is `@champpaba/gslide`
 - **THEN** bin entry points to `bin/gslide.mjs`
 - **THEN** postinstall script points to `scripts/postinstall.sh`
 - **THEN** files array includes `bin/`, `scripts/`, `src/`, `pyproject.toml`
 
 #### Scenario: Global install via npm
-- **WHEN** user runs `npm install -g @ChampPABA/gslide`
+- **WHEN** user runs `npm install -g @champpaba/gslide`
 - **THEN** `gslide` command becomes available in PATH
 - **THEN** postinstall runs automatically
 
@@ -49,7 +49,7 @@ The system SHALL provide a `gslide update` CLI command.
 #### Scenario: Update available
 - **WHEN** user runs `gslide update` and a newer version exists on npm
 - **THEN** system shows current and latest version
-- **THEN** system runs `npm update -g @ChampPABA/gslide`
+- **THEN** system runs `npm update -g @champpaba/gslide`
 - **THEN** system confirms update success
 
 #### Scenario: Already up to date

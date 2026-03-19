@@ -1,6 +1,6 @@
 ## 1. npm Package Setup
 
-- [x] 1.1 Create `package.json` with name `@ChampPABA/gslide`, bin entry `bin/gslide.mjs`, postinstall script, files array
+- [x] 1.1 Create `package.json` with name `@champpaba/gslide`, bin entry `bin/gslide.mjs`, postinstall script, files array
 - [x] 1.2 Create `bin/gslide.mjs` — Node script that finds Python venv and spawns `gslide` CLI with forwarded args
 - [x] 1.3 Create `scripts/postinstall.sh` — auto-setup: check/install uv → check/install Python → create venv → pip install → playwright install chromium with progress output
 - [x] 1.4 Test: `npm pack` creates valid tarball
@@ -9,7 +9,7 @@
 ## 2. Self-Update Command
 
 - [x] 2.1 Add `gslide update` CLI command in `src/gslide/cli.py`
-- [x] 2.2 Implement update logic: check npm registry for latest version, compare with current, run `npm update -g @ChampPABA/gslide`
+- [x] 2.2 Implement update logic: check npm registry for latest version, compare with current, run `npm update -g @champpaba/gslide`
 - [x] 2.3 Write test for update command (mock subprocess)
 
 ## 3. Claude Code Skill

@@ -12,7 +12,7 @@ const gslideExe = join(venvBin, "gslide");
 
 if (!existsSync(gslideExe)) {
   console.error("gslide Python package not installed.");
-  console.error("Run: npm rebuild @ChampPABA/gslide");
+  console.error("Run: npm rebuild @champpaba/gslide");
   process.exit(1);
 }
 

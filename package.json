@@ -1,5 +1,5 @@
 {
-  "name": "@ChampPABA/gslide",
+  "name": "@champpaba/gslide",
   "version": "0.1.0",
   "description": "CLI tool for automating Google Slides 'Help me visualize' feature via browser automation",
   "bin": {

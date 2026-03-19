@@ -4,8 +4,8 @@ set -e
 echo "Installing gslide..."
 
 # Install CLI
-echo "  [1/2] Installing @ChampPABA/gslide CLI..."
-npm install -g @ChampPABA/gslide
+echo "  [1/2] Installing @champpaba/gslide CLI..."
+npm install -g @champpaba/gslide
 
 # Install skill
 echo "  [2/2] Installing gslide skill for Claude Code..."
@@ -14,7 +14,7 @@ mkdir -p "$SKILL_DIR"
 
 # Copy SKILL.md from npm package location
 NPM_PREFIX="$(npm prefix -g)"
-SKILL_SRC="$NPM_PREFIX/lib/node_modules/@ChampPABA/gslide/skills/gslide/SKILL.md"
+SKILL_SRC="$NPM_PREFIX/lib/node_modules/@champpaba/gslide/skills/gslide/SKILL.md"
 
 if [ -f "$SKILL_SRC" ]; then
     cp "$SKILL_SRC" "$SKILL_DIR/SKILL.md"

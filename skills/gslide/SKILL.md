@@ -16,7 +16,7 @@ gslide --help
 ```
 
 If not installed, tell the user:
-> gslide is not installed. Run: `npm install -g @ChampPABA/gslide`
+> gslide is not installed. Run: `npm install -g @champpaba/gslide`
 
 If installed, check auth:
 ```bash

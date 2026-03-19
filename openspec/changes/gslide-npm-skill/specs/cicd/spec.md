@@ -6,7 +6,7 @@ The system SHALL provide a GitHub Actions workflow that publishes to npm on vers
 #### Scenario: Tag push triggers publish
 - **WHEN** developer pushes tag matching `v*` pattern (e.g., `v0.2.0`)
 - **THEN** GitHub Actions runs release workflow
-- **THEN** workflow publishes package to npm as `@ChampPABA/gslide`
+- **THEN** workflow publishes package to npm as `@champpaba/gslide`
 
 #### Scenario: Version sync between package.json and pyproject.toml
 - **WHEN** release workflow runs

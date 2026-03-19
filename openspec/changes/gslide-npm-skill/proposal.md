@@ -1,10 +1,10 @@
 ## Why
 
-gslide CLI ใช้งานได้แล้วแต่ยังติดตั้งยาก (ต้อง clone repo, สร้าง venv, pip install เอง) และ Claude ยังไม่รู้จัก gslide — ต้องสอนทุกครั้ง ต้องทำให้ติดตั้งง่ายด้วย `npm install -g @ChampPABA/gslide` และสร้าง Claude Code skill ให้ trigger อัตโนมัติเมื่อ user อยากทำ slide
+gslide CLI ใช้งานได้แล้วแต่ยังติดตั้งยาก (ต้อง clone repo, สร้าง venv, pip install เอง) และ Claude ยังไม่รู้จัก gslide — ต้องสอนทุกครั้ง ต้องทำให้ติดตั้งง่ายด้วย `npm install -g @champpaba/gslide` และสร้าง Claude Code skill ให้ trigger อัตโนมัติเมื่อ user อยากทำ slide
 
 ## What Changes
 
-- New npm package `@ChampPABA/gslide` wrapping Python CLI with auto-setup (uv + Python + Playwright Chromium)
+- New npm package `@champpaba/gslide` wrapping Python CLI with auto-setup (uv + Python + Playwright Chromium)
 - New `gslide update` CLI command for self-update
 - New Claude Code skill (`skills/gslide.md`) teaching Claude how to use gslide CLI
 - New `skills.sh` installer script that installs CLI + copies skill in one step
