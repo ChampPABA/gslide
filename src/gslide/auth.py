@@ -1,9 +1,7 @@
 """Authentication session management — file I/O and browser operations."""
 
-import json
 import sys
 from pathlib import Path
-from typing import Any
 
 import click
 
@@ -18,10 +16,13 @@ def is_logged_in() -> bool:
     return get_storage_path().exists()
 
 
-def save_storage_state(data: dict[str, Any]) -> None:
-    path = get_storage_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2))
+def require_login() -> Path:
+    """Return storage path or exit if not logged in."""
+    storage_path = get_storage_path()
+    if not storage_path.exists():
+        click.echo("Not logged in. Run: gslide auth login", err=True)
+        sys.exit(1)
+    return storage_path
 
 
 def delete_storage_state() -> None:
@@ -56,11 +57,7 @@ def login() -> None:
 
 def status() -> None:
     """Check if saved session is still valid."""
-    path = get_storage_path()
-
-    if not path.exists():
-        click.echo("Not logged in. Run: gslide auth login")
-        sys.exit(1)
+    path = require_login()
 
     from gslide.browser import BrowserSession
 

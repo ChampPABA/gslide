@@ -1,9 +1,8 @@
 """Tests for auth module — file I/O operations for session management."""
 
-import json
 from pathlib import Path
 
-from gslide.auth import get_storage_path, is_logged_in, save_storage_state, delete_storage_state
+from gslide.auth import get_storage_path, is_logged_in, delete_storage_state
 
 
 class TestGetStoragePath:
@@ -29,18 +28,6 @@ class TestIsLoggedIn:
         monkeypatch.setattr("gslide.auth.get_storage_path", lambda: state_file)
 
         assert is_logged_in() is False
-
-
-class TestSaveStorageState:
-    def test_creates_directory_and_writes_json(self, tmp_path: Path, monkeypatch) -> None:
-        state_file = tmp_path / ".gslide" / "storage_state.json"
-        monkeypatch.setattr("gslide.auth.get_storage_path", lambda: state_file)
-
-        save_storage_state({"cookies": [{"name": "SID", "value": "abc"}]})
-
-        assert state_file.exists()
-        data = json.loads(state_file.read_text())
-        assert data["cookies"][0]["name"] == "SID"
 
 
 class TestDeleteStorageState:

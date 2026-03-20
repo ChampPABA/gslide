@@ -155,7 +155,7 @@ class TestGenSingle:
         storage.parent.mkdir(parents=True)
         storage.write_text("{}")
 
-        with patch("gslide.gen.get_storage_path", return_value=storage):
+        with patch("gslide.gen.require_login", return_value=storage):
             from gslide.gen import gen_single
             gen_single("abc123", "infographic", "Show Q4 revenue")
 
@@ -189,19 +189,17 @@ class TestGenBatch:
             ],
         )
 
-        with patch("gslide.gen.get_storage_path", return_value=storage):
+        with patch("gslide.gen.require_login", return_value=storage):
             gen_batch(prompts_data)
 
         mock_page.goto.assert_called_once()
 
     @patch("gslide.gen.BrowserSession")
     @patch("gslide.gen.fill_and_create", side_effect=[Exception("gen failed"), None])
-    @patch("gslide.gen.insert_infographic")
-    @patch("gslide.gen.insert_slide")
+    @patch("gslide.gen._insert_on_new_slide")
     def test_batch_continue_on_error_does_not_abort(
         self,
-        mock_insert_slide: MagicMock,
-        mock_insert_infographic: MagicMock,
+        mock_insert_on_new_slide: MagicMock,
         mock_fill: MagicMock,
         mock_browser_cls: MagicMock,
         tmp_path: Path,
@@ -227,10 +225,10 @@ class TestGenBatch:
             ],
         )
 
-        with patch("gslide.gen.get_storage_path", return_value=storage):
+        with patch("gslide.gen.require_login", return_value=storage):
             gen_batch(prompts_data, continue_on_error=True)
 
         # Both fill_and_create calls were attempted
         assert mock_fill.call_count == 2
         # Second slide's insert was called (first failed before insert)
-        mock_insert_slide.assert_called_once()
+        mock_insert_on_new_slide.assert_called_once()
