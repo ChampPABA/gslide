@@ -7,33 +7,25 @@ from typing import Any
 
 import click
 
-
 SLIDES_URL = "https://docs.google.com/presentation/"
 
 
 def get_storage_path() -> Path:
-    """Return the path to the storage state file."""
     return Path.home() / ".gslide" / "storage_state.json"
 
 
 def is_logged_in() -> bool:
-    """Check if a storage state file exists."""
     return get_storage_path().exists()
 
 
 def save_storage_state(data: dict[str, Any]) -> None:
-    """Save storage state data to disk, creating directories as needed."""
     path = get_storage_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2))
 
 
 def delete_storage_state() -> None:
-    """Delete the storage state file. No error if missing."""
-    try:
-        get_storage_path().unlink()
-    except FileNotFoundError:
-        pass
+    get_storage_path().unlink(missing_ok=True)
 
 
 def login() -> None:

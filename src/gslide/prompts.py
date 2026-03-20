@@ -33,9 +33,7 @@ class PromptsData:
 
 
 def load_prompts(path: Path) -> PromptsData:
-    """Load and validate a prompts.json file."""
-    with open(path) as f:
-        raw = json.load(f)
+    raw = json.loads(path.read_text())
 
     if not isinstance(raw, dict):
         raise ValidationError("Prompts file must be a JSON object")

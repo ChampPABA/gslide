@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from playwright.sync_api import sync_playwright, BrowserContext, Playwright
+from playwright.sync_api import BrowserContext, Playwright, sync_playwright
 
 
 class BrowserSession:
@@ -32,7 +32,6 @@ class BrowserSession:
             self._context.browser.close()
         if self._pw:
             self._pw.stop()
-        return None
 
 
 def save_session(context: BrowserContext, path: Path) -> None:

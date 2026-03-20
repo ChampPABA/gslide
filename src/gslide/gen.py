@@ -20,7 +20,6 @@ from gslide.auth import get_storage_path
 from gslide.browser import BrowserSession
 from gslide.prompts import PromptsData
 
-
 PRESENTATION_URL = "https://docs.google.com/presentation/d/{id}/edit"
 DEFAULT_TIMEOUT_MS = 120_000  # 120s — generation can take 30-60s
 PANEL_LOAD_TIMEOUT_MS = 10_000
@@ -53,8 +52,8 @@ def navigate_to_presentation(page: Page, presentation_id: str) -> None:
         page.wait_for_selector(
             '[aria-label="filmstrip"]', timeout=SLIDES_LOAD_TIMEOUT_MS
         )
-    except PwTimeout:
-        raise GenerationError("Google Slides UI did not load in time")
+    except PwTimeout as e:
+        raise GenerationError("Google Slides UI did not load in time") from e
 
 
 def open_panel(page: Page) -> None:
@@ -71,11 +70,7 @@ def open_panel(page: Page) -> None:
 
 
 def _reopen_panel(page: Page, retries: int = 2) -> None:
-    """Reopen the HMV panel after insert overlay is dismissed.
-
-    After inserting a slide, the panel may close. This clicks the HMV icon
-    and waits for tabs to reappear, with retry logic.
-    """
+    """Reopen the HMV panel after insert overlay is dismissed."""
     for attempt in range(retries + 1):
         try:
             hmv = page.locator('div[aria-label="Help me visualize"]')
@@ -97,7 +92,6 @@ def select_tab(page: Page, tab_name: str) -> None:
 
 
 def _find_visible_textarea(page: Page) -> object:
-    """Find the first visible textarea in the panel."""
     textareas = page.locator("textarea")
     for i in range(textareas.count()):
         ta = textareas.nth(i)
@@ -179,12 +173,7 @@ def fill_and_create(
 
 
 def _click_preview_image(page: Page) -> None:
-    """Click the generated preview image to open the insert overlay.
-
-    Validated flow: after generation, the preview appears as an img hosted on
-    googleusercontent.com. Clicking it opens a fullscreen preview with
-    "Insert on new slide" button.
-    """
+    """Click the generated preview image to open the insert overlay."""
     preview = page.locator('img[src*="googleusercontent.com"]')
     for i in range(preview.count()):
         try:
@@ -203,46 +192,40 @@ def _click_preview_image(page: Page) -> None:
     raise GenerationError("Generated preview image not found")
 
 
-def insert_infographic(page: Page) -> None:
-    """Click preview → 'Insert on new slide' for infographic tab."""
-    _click_preview_image(page)
-
-    btn = page.get_by_text("Insert on new slide")
+def _click_insert_button(page: Page, text: str) -> None:
+    """Click an insert button by text, raising GenerationError if not found."""
+    btn = page.get_by_text(text)
     if btn.count() > 0 and btn.first.is_visible():
         btn.first.click()
     else:
-        raise GenerationError("'Insert on new slide' button not found after clicking preview")
+        raise GenerationError(f"'{text}' button not found after clicking preview")
+
+
+def insert_infographic(page: Page) -> None:
+    """Click preview then 'Insert on new slide' for infographic tab."""
+    _click_preview_image(page)
+    _click_insert_button(page, "Insert on new slide")
     _wait_for_new_slide(page)
 
 
 def insert_slide(page: Page) -> None:
-    """Click preview → 'Insert on new slide' for slide tab."""
+    """Click preview then 'Insert on new slide' for slide tab."""
     _click_preview_image(page)
-
-    # Slide tab uses same "Insert on new slide" button after clicking preview
-    btn = page.get_by_text("Insert on new slide")
-    if btn.count() > 0 and btn.first.is_visible():
-        btn.first.click()
-    else:
-        raise GenerationError("'Insert on new slide' button not found for slide tab")
+    _click_insert_button(page, "Insert on new slide")
     _wait_for_new_slide(page)
 
 
 def insert_image(page: Page, insert_as: str = "image") -> None:
-    """Click preview → insert as image or background."""
+    """Click preview then insert as image or background."""
     _click_preview_image(page)
 
-    # Image tab may show different insert options via dropdown
-    if insert_as == "background":
-        option_text = "Insert as background"
-    else:
-        option_text = "Insert as image"
+    option_text = "Insert as background" if insert_as == "background" else "Insert as image"
 
     btn = page.get_by_text(option_text)
     if btn.count() > 0 and btn.first.is_visible():
         btn.first.click()
     else:
-        # Fallback: try "Insert on new slide" or dropdown
+        # Fallback: try "Insert on new slide"
         fallback = page.get_by_text("Insert on new slide")
         if fallback.count() > 0 and fallback.first.is_visible():
             fallback.first.click()
@@ -252,15 +235,12 @@ def insert_image(page: Page, insert_as: str = "image") -> None:
     page.wait_for_timeout(2000)
 
 
-
 def check_url(page: Page, presentation_id: str) -> None:
-    """Verify browser URL still contains the target presentation ID."""
     if presentation_id not in page.url:
         raise GenerationError("Browser navigated away from target presentation")
 
 
 def _wait_for_new_slide(page: Page) -> None:
-    """Wait for new slide to appear in filmstrip."""
     page.wait_for_timeout(2000)
 
 
@@ -274,6 +254,15 @@ _INSERT_FN = {
 }
 
 
+def _require_login() -> "Path":
+    """Return storage path or exit if not logged in."""
+    storage_path = get_storage_path()
+    if not storage_path.exists():
+        click.echo("Not logged in. Run: gslide auth login", err=True)
+        sys.exit(1)
+    return storage_path
+
+
 def gen_single(
     presentation_id: str,
     tab: str,
@@ -284,11 +273,7 @@ def gen_single(
     insert_as: str = "image",
 ) -> None:
     """Generate a single slide/infographic/image via browser automation."""
-    storage_path = get_storage_path()
-    if not storage_path.exists():
-        click.echo("Not logged in. Run: gslide auth login", err=True)
-        sys.exit(1)
-
+    storage_path = _require_login()
     timeout_ms = timeout * 1000
 
     with BrowserSession(storage_state=storage_path) as context:
@@ -315,7 +300,6 @@ def gen_single(
 
         except GenerationError as e:
             click.echo(f"Error: {e}", err=True)
-            # Take screenshot for debugging
             try:
                 page.screenshot(path="/tmp/gslide_error.png")
                 click.echo("Debug screenshot saved to /tmp/gslide_error.png")
@@ -344,11 +328,7 @@ def gen_batch(
     timeout: int = 120,
 ) -> None:
     """Generate all slides from prompts data in a single browser session."""
-    storage_path = get_storage_path()
-    if not storage_path.exists():
-        click.echo("Not logged in. Run: gslide auth login", err=True)
-        sys.exit(1)
-
+    storage_path = _require_login()
     timeout_ms = timeout * 1000
     total_slides = len(prompts_data.slides)
     total_images = len(prompts_data.images)
@@ -397,7 +377,7 @@ def gen_batch(
                 page.wait_for_timeout(500)
                 _reopen_panel(page)
 
-            except (GenerationError, PwTimeout, Exception) as e:
+            except Exception as e:
                 errors.append((i, slide.tab, str(e)))
                 click.echo(f"  {label} FAILED: {e}")
                 if not continue_on_error:
@@ -412,7 +392,7 @@ def gen_batch(
                 check_url(page, prompts_data.presentation_id)
                 _navigate_to_slide(page, img.target_slide)
 
-                if "image" != current_tab:
+                if current_tab != "image":
                     select_tab(page, "Image")
                     current_tab = "image"
 
@@ -423,12 +403,11 @@ def gen_batch(
                 elapsed = time.monotonic() - t0
                 click.echo(f"  {label} done ({elapsed:.1f}s)")
 
-            except (GenerationError, PwTimeout, Exception) as e:
+            except Exception as e:
                 errors.append((total_slides + i, "image", str(e)))
                 click.echo(f"  {label} FAILED: {e}")
                 if not continue_on_error:
                     break
-
 
     # Summary
     total_elapsed = time.monotonic() - start_time
