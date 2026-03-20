@@ -1,13 +1,13 @@
 """Generation logic — browser automation for 'Help me visualize' feature.
 
-Selector discoveries (validated Mar 19, 2026):
+Selector discoveries (validated Mar 20, 2026):
 - Panel opener: div[aria-label="Help me visualize"] (right sidebar icon)
-- Tabs: role="tab" with name="Slide"/"Image"/"Infographic"
-- Text input: visible textarea (use keyboard.type, not fill)
+- Tabs: role="tab" with name="Slide"/"Image"/"Infographic" (must filter :visible)
+- Text input: visible textarea (use keyboard.type, not fill; iterate to skip hidden)
 - Submit: get_by_role("button", name="Create", exact=True)
-- Filmstrip: [aria-label="filmstrip"] (takes ~10s to appear)
+- Filmstrip: [aria-label*="filmstrip"] (partial match — label varies: "Hide filmstrip" etc.)
 - Generation takes 30-60s, shows "Creating..." tooltip
-- Insert buttons appear after generation completes (below preview)
+- Insert button text: "Insert as new slide" (changed from "Insert on new slide")
 """
 
 import sys
@@ -23,7 +23,7 @@ from gslide.prompts import PromptsData, Tab
 PRESENTATION_URL = "https://docs.google.com/presentation/d/{id}/edit"
 DEFAULT_TIMEOUT_MS = 120_000  # 120s — generation can take 30-60s
 PANEL_LOAD_TIMEOUT_MS = 10_000
-SLIDES_LOAD_TIMEOUT_MS = 30_000
+SLIDES_LOAD_TIMEOUT_MS = 60_000
 
 
 class GenerationError(Exception):
@@ -50,7 +50,7 @@ def navigate_to_presentation(page: Page, presentation_id: str) -> None:
     # Wait for filmstrip sidebar to confirm Slides UI loaded
     try:
         page.wait_for_selector(
-            '[aria-label="filmstrip"]', timeout=SLIDES_LOAD_TIMEOUT_MS
+            '[aria-label*="filmstrip"]', timeout=SLIDES_LOAD_TIMEOUT_MS
         )
     except PwTimeout as e:
         raise GenerationError("Google Slides UI did not load in time") from e
@@ -65,8 +65,8 @@ def open_panel(page: Page) -> None:
     hmv = page.locator('div[aria-label="Help me visualize"]')
     hmv.click()
 
-    # Wait for the panel to appear — tabs and textarea become visible
-    page.wait_for_selector('[role="tab"]', timeout=PANEL_LOAD_TIMEOUT_MS)
+    # Wait for HMV panel tabs (Slide/Image/Infographic) — must be visible
+    page.wait_for_selector('[role="tab"]:visible', timeout=PANEL_LOAD_TIMEOUT_MS)
 
 
 def _reopen_panel(page: Page, retries: int = 2) -> None:
@@ -90,9 +90,11 @@ def select_tab(page: Page, tab_name: str) -> None:
 
 
 def _find_visible_textarea(page: Page) -> object:
-    ta = page.locator("textarea").first
-    if ta.is_visible():
-        return ta
+    all_ta = page.locator("textarea")
+    for i in range(all_ta.count()):
+        ta = all_ta.nth(i)
+        if ta.is_visible():
+            return ta
     raise GenerationError("No visible text input found in panel")
 
 
@@ -208,11 +210,11 @@ def _wait_for_slide_insert(page: Page, previous_count: int, timeout_ms: int = 50
 
 
 def _insert_on_new_slide(page: Page) -> None:
-    """Click preview then 'Insert on new slide' (used by both infographic and slide tabs)."""
+    """Click preview then 'Insert as new slide' (used by both infographic and slide tabs)."""
     filmstrip_items = page.locator('[aria-label="filmstrip"] [role="listitem"]')
     previous_count = filmstrip_items.count()
     _click_preview_image(page)
-    _click_insert_button(page, "Insert on new slide")
+    _click_insert_button(page, "Insert as new slide")
     _wait_for_slide_insert(page, previous_count)
 
 
@@ -227,8 +229,8 @@ def insert_image(page: Page, insert_as: str = "image") -> None:
     try:
         _click_insert_button(page, option_text)
     except GenerationError:
-        # Fallback: try "Insert on new slide"
-        _click_insert_button(page, "Insert on new slide")
+        # Fallback: try "Insert as new slide"
+        _click_insert_button(page, "Insert as new slide")
 
     _wait_for_slide_insert(page, previous_count)
 
