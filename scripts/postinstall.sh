@@ -48,7 +48,7 @@ fi
 echo "         done"
 
 # Step 4: Install Playwright Chromium
-echo "  [4/4] Installing Chromium browser..."
+echo "  [4/5] Installing Chromium browser..."
 PLAYWRIGHT_BIN="$VENV_DIR/bin/playwright"
 if [ -f "$PLAYWRIGHT_BIN" ]; then
     "$PLAYWRIGHT_BIN" install chromium 2>/dev/null
@@ -58,5 +58,19 @@ else
     echo "         Run manually: $VENV_DIR/bin/playwright install chromium"
 fi
 
+# Step 5: Link Claude Code skill
+echo "  [5/5] Linking Claude Code skill..."
+SKILL_DIR="$HOME/.claude/skills/gslide"
+SKILL_SRC="$PKG_DIR/skills/gslide/SKILL.md"
+
+if [ -f "$SKILL_SRC" ]; then
+    mkdir -p "$SKILL_DIR"
+    ln -sf "$SKILL_SRC" "$SKILL_DIR/SKILL.md"
+    echo "         linked: $SKILL_DIR/SKILL.md -> $SKILL_SRC"
+else
+    echo "         skipped (SKILL.md not found)"
+fi
+
 echo ""
 echo "Ready! Run: gslide auth login"
+echo "  Skill: /gslide (in Claude Code)"

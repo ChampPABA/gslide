@@ -6,6 +6,27 @@ from pathlib import Path
 import click
 
 
+def _link_skill() -> bool:
+    """Symlink SKILL.md into ~/.claude/skills/gslide/."""
+    import subprocess
+
+    result = subprocess.run(
+        ["npm", "prefix", "-g"], capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return False
+    npm_prefix = result.stdout.strip()
+    skill_src = Path(npm_prefix) / "lib/node_modules/@champpaba/gslide/skills/gslide/SKILL.md"
+    if not skill_src.exists():
+        return False
+    skill_dir = Path.home() / ".claude/skills/gslide"
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    target = skill_dir / "SKILL.md"
+    target.unlink(missing_ok=True)
+    target.symlink_to(skill_src)
+    return True
+
+
 @click.group()
 def cli() -> None:
     """gslide — Automate Google Slides 'Help me visualize' feature."""
@@ -41,6 +62,12 @@ def update() -> None:
         click.echo(f"Already up to date (v{__version__}).")
     else:
         click.echo(f"Updated: v{__version__} -> v{new_ver}")
+
+    # Re-link skill after update
+    if _link_skill():
+        click.echo("Skill: /gslide linked.")
+    else:
+        click.echo("Skill: link skipped (SKILL.md not found).")
 
 
 # --- Auth commands ---
