@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-from gslide.auth import get_storage_path, is_logged_in, delete_storage_state
+import pytest
+
+from gslide.auth import get_storage_path, is_logged_in, delete_storage_state, require_login
 
 
 class TestGetStoragePath:
@@ -45,3 +47,24 @@ class TestDeleteStorageState:
         monkeypatch.setattr("gslide.auth.get_storage_path", lambda: state_file)
 
         delete_storage_state()  # should not raise
+
+
+class TestRequireLogin:
+    def test_returns_path_when_file_exists(self, tmp_path: Path, monkeypatch) -> None:
+        state_file = tmp_path / ".gslide" / "storage_state.json"
+        state_file.parent.mkdir()
+        state_file.write_text("{}")
+        monkeypatch.setattr("gslide.auth.get_storage_path", lambda: state_file)
+
+        result = require_login()
+
+        assert result == state_file
+
+    def test_exits_when_file_missing(self, tmp_path: Path, monkeypatch) -> None:
+        state_file = tmp_path / ".gslide" / "storage_state.json"
+        monkeypatch.setattr("gslide.auth.get_storage_path", lambda: state_file)
+
+        with pytest.raises(SystemExit) as exc_info:
+            require_login()
+
+        assert exc_info.value.code == 1

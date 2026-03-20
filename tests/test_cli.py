@@ -72,6 +72,28 @@ class TestGenArgValidation:
         assert "slide" in result.output
 
 
+class TestLogoutCommand:
+    def test_logout_when_logged_in(self, runner: CliRunner, tmp_path: Path) -> None:
+        state_file = tmp_path / "storage_state.json"
+        state_file.write_text("{}")
+
+        with patch("gslide.auth.get_storage_path", return_value=state_file):
+            result = runner.invoke(cli, ["auth", "logout"])
+
+        assert result.exit_code == 0
+        assert "Logged out" in result.output
+        assert not state_file.exists()
+
+    def test_logout_when_not_logged_in(self, runner: CliRunner, tmp_path: Path) -> None:
+        state_file = tmp_path / "nonexistent.json"
+
+        with patch("gslide.auth.get_storage_path", return_value=state_file):
+            result = runner.invoke(cli, ["auth", "logout"])
+
+        assert result.exit_code == 0
+        assert "Not logged in" in result.output
+
+
 class TestUpdateCommand:
     def test_update_shows_current_version(self, runner: CliRunner) -> None:
         with patch("subprocess.run") as mock_run:

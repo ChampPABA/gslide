@@ -1,6 +1,6 @@
 {
   "name": "@champpaba/gslide",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "CLI tool for automating Google Slides 'Help me visualize' feature via browser automation",
   "bin": {
     "gslide": "./bin/gslide.mjs"
