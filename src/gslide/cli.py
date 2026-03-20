@@ -43,7 +43,7 @@ def update() -> None:
     click.echo("Updating...")
 
     proc = subprocess.run(
-        ["npm", "install", "-g", "@champpaba/gslide@latest"],
+        ["npm", "install", "-g", "--prefer-online", "@champpaba/gslide@latest"],
         timeout=120,
     )
     if proc.returncode != 0:
