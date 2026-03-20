@@ -75,30 +75,27 @@ class TestGenArgValidation:
 class TestUpdateCommand:
     def test_update_shows_current_version(self, runner: CliRunner) -> None:
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(stdout="0.1.0\n", returncode=0)
+            mock_run.return_value = MagicMock(returncode=0, stdout="0.2.0\n")
             result = runner.invoke(cli, ["update"])
 
-        assert "v0.1.0" in result.output
+        assert "Current:" in result.output
+        assert "Updating..." in result.output
 
-    def test_update_already_up_to_date(self, runner: CliRunner) -> None:
+    def test_update_runs_npm_install(self, runner: CliRunner) -> None:
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(stdout="0.1.0\n", returncode=0)
+            mock_run.return_value = MagicMock(returncode=0, stdout="0.2.0\n")
             result = runner.invoke(cli, ["update"])
 
         assert result.exit_code == 0
-        assert "Already up to date" in result.output
+        # First call should be npm install -g @champpaba/gslide@latest
+        first_call_args = mock_run.call_args_list[0][0][0]
+        assert "install" in first_call_args
+        assert "@champpaba/gslide@latest" in first_call_args
 
-    def test_update_triggers_npm_update(self, runner: CliRunner) -> None:
-        call_count = [0]
-
-        def side_effect(*args, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return MagicMock(stdout="0.2.0\n", returncode=0)
-            return MagicMock(returncode=0)
-
-        with patch("subprocess.run", side_effect=side_effect):
+    def test_update_fails_gracefully(self, runner: CliRunner) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1)
             result = runner.invoke(cli, ["update"])
 
-        assert "v0.2.0" in result.output
-        assert "Updated" in result.output
+        assert result.exit_code != 0
+        assert "failed" in result.output.lower()

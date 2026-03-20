@@ -13,46 +13,34 @@ def cli() -> None:
 
 @cli.command()
 def update() -> None:
-    """Check for updates and self-update via npm."""
+    """Update gslide to the latest version."""
     import subprocess
 
     from gslide import __version__
 
-    click.echo(f"Current version: v{__version__}")
-    click.echo("Checking for updates...")
-
-    try:
-        result = subprocess.run(
-            ["npm", "view", "@champpaba/gslide", "version", "--registry", "https://registry.npmjs.org"],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        latest = result.stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        click.echo("Could not check npm registry.", err=True)
-        sys.exit(1)
-
-    if not latest:
-        click.echo("Could not determine latest version.", err=True)
-        sys.exit(1)
-
-    if latest == __version__:
-        click.echo(f"Already up to date (v{__version__}).")
-        return
-
-    click.echo(f"Latest version: v{latest}")
+    click.echo(f"Current: v{__version__}")
     click.echo("Updating...")
 
     proc = subprocess.run(
-        ["npm", "update", "-g", "@champpaba/gslide"],
+        ["npm", "install", "-g", "@champpaba/gslide@latest"],
         timeout=120,
     )
-    if proc.returncode == 0:
-        click.echo(f"Updated to v{latest}.")
-    else:
+    if proc.returncode != 0:
         click.echo("Update failed.", err=True)
         sys.exit(1)
+
+    # Check new version
+    result = subprocess.run(
+        ["node", "-e", "console.log(require(require('path').join(require('child_process').execSync('npm prefix -g').toString().trim(),'lib/node_modules/@champpaba/gslide/package.json')).version)"],
+        capture_output=True,
+        text=True,
+    )
+    new_ver = result.stdout.strip() if result.returncode == 0 else "unknown"
+
+    if new_ver == __version__:
+        click.echo(f"Already up to date (v{__version__}).")
+    else:
+        click.echo(f"Updated: v{__version__} -> v{new_ver}")
 
 
 # --- Auth commands ---
