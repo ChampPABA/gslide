@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 
@@ -9,7 +10,13 @@ class ValidationError(Exception):
     """Raised when prompts.json validation fails."""
 
 
-VALID_TABS = frozenset({"slide", "infographic", "image"})
+class Tab(StrEnum):
+    SLIDE = "slide"
+    INFOGRAPHIC = "infographic"
+    IMAGE = "image"
+
+
+VALID_TABS = frozenset(Tab)
 
 
 @dataclass(frozen=True)

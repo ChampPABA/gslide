@@ -18,7 +18,7 @@ from playwright.sync_api import Page, TimeoutError as PwTimeout
 
 from gslide.auth import require_login
 from gslide.browser import BrowserSession
-from gslide.prompts import PromptsData
+from gslide.prompts import PromptsData, Tab
 
 PRESENTATION_URL = "https://docs.google.com/presentation/d/{id}/edit"
 DEFAULT_TIMEOUT_MS = 120_000  # 120s — generation can take 30-60s
@@ -104,7 +104,7 @@ def _snapshot_preview_srcs(page: Page) -> set[str]:
         try:
             src = preview.nth(i).get_attribute("src") or ""
             if src:
-                srcs.add(src[:80])
+                srcs.add(src)
         except Exception:
             continue
     return srcs
@@ -156,7 +156,7 @@ def fill_and_create(
                 img = preview.nth(i)
                 if img.is_visible():
                     bb = img.bounding_box()
-                    src = (img.get_attribute("src") or "")[:80]
+                    src = img.get_attribute("src") or ""
                     if bb and bb["width"] > 200 and src not in stale_srcs:
                         return  # NEW preview appeared — generation complete
             except Exception:
@@ -197,15 +197,29 @@ def _click_insert_button(page: Page, text: str) -> None:
         raise GenerationError(f"'{text}' button not found after clicking preview")
 
 
+def _wait_for_slide_insert(page: Page, previous_count: int, timeout_ms: int = 5000) -> None:
+    """Poll filmstrip until slide count increases or timeout."""
+    start = time.monotonic()
+    while (time.monotonic() - start) * 1000 < timeout_ms:
+        items = page.locator('[aria-label="filmstrip"] [role="listitem"]')
+        if items.count() > previous_count:
+            return
+        page.wait_for_timeout(200)
+
+
 def _insert_on_new_slide(page: Page) -> None:
     """Click preview then 'Insert on new slide' (used by both infographic and slide tabs)."""
+    filmstrip_items = page.locator('[aria-label="filmstrip"] [role="listitem"]')
+    previous_count = filmstrip_items.count()
     _click_preview_image(page)
     _click_insert_button(page, "Insert on new slide")
-    page.wait_for_timeout(2000)
+    _wait_for_slide_insert(page, previous_count)
 
 
 def insert_image(page: Page, insert_as: str = "image") -> None:
     """Click preview then insert as image or background."""
+    filmstrip_items = page.locator('[aria-label="filmstrip"] [role="listitem"]')
+    previous_count = filmstrip_items.count()
     _click_preview_image(page)
 
     option_text = "Insert as background" if insert_as == "background" else "Insert as image"
@@ -216,7 +230,7 @@ def insert_image(page: Page, insert_as: str = "image") -> None:
         # Fallback: try "Insert on new slide"
         _click_insert_button(page, "Insert on new slide")
 
-    page.wait_for_timeout(2000)
+    _wait_for_slide_insert(page, previous_count)
 
 
 def check_url(page: Page, presentation_id: str) -> None:
@@ -228,9 +242,9 @@ def check_url(page: Page, presentation_id: str) -> None:
 
 
 _INSERT_FN = {
-    "infographic": lambda page, **_: _insert_on_new_slide(page),
-    "slide": lambda page, **_: _insert_on_new_slide(page),
-    "image": lambda page, **opts: insert_image(page, opts.get("insert_as", "image")),
+    Tab.INFOGRAPHIC: lambda page, **_: _insert_on_new_slide(page),
+    Tab.SLIDE: lambda page, **_: _insert_on_new_slide(page),
+    Tab.IMAGE: lambda page, **opts: insert_image(page, opts.get("insert_as", "image")),
 }
 
 
@@ -253,7 +267,7 @@ def gen_single(
         try:
             navigate_to_presentation(page, presentation_id)
 
-            if tab == "image" and slide_index is not None:
+            if tab == Tab.IMAGE and slide_index is not None:
                 _navigate_to_slide(page, slide_index)
             else:
                 open_panel(page)
@@ -362,9 +376,9 @@ def gen_batch(
                 check_url(page, prompts_data.presentation_id)
                 _navigate_to_slide(page, img.target_slide)
 
-                if current_tab != "image":
+                if current_tab != Tab.IMAGE:
                     select_tab(page, "Image")
-                    current_tab = "image"
+                    current_tab = Tab.IMAGE
 
                 t0 = time.monotonic()
                 fill_and_create(page, img.prompt, timeout_ms=timeout_ms)
