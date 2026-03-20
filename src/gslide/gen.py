@@ -7,7 +7,8 @@ Selector discoveries (validated Mar 20, 2026):
 - Submit: get_by_role("button", name="Create", exact=True)
 - Filmstrip: [aria-label*="filmstrip"] (partial match — label varies: "Hide filmstrip" etc.)
 - Generation takes 30-60s, shows "Creating..." tooltip
-- Insert button text: "Insert as new slide" (changed from "Insert on new slide")
+- Insert button text varies: "Insert as new slide" / "Insert on new slide" (Google A/B tests)
+- After insert, stale preview persists in panel — must track stale srcs to click correct preview
 """
 
 import sys
@@ -56,12 +57,21 @@ def navigate_to_presentation(page: Page, presentation_id: str) -> None:
         raise GenerationError("Google Slides UI did not load in time") from e
 
 
-def open_panel(page: Page) -> None:
-    """Navigate to last slide and open 'Help me visualize' panel."""
-    page.keyboard.press("End")
-    page.wait_for_timeout(500)
+def _is_panel_open(page: Page) -> bool:
+    """Check if the HMV panel is currently open (visible tabs)."""
+    tabs = page.locator('[role="tab"]:visible')
+    for i in range(tabs.count()):
+        text = tabs.nth(i).text_content() or ""
+        if text.strip() in ("Slide", "Image", "Infographic"):
+            return True
+    return False
 
-    # Click the "Help me visualize" sidebar icon (div, not button)
+
+def open_panel(page: Page) -> None:
+    """Open 'Help me visualize' panel. Toggle-aware: skip click if already open."""
+    if _is_panel_open(page):
+        return
+
     hmv = page.locator('div[aria-label="Help me visualize"]')
     hmv.click()
 
@@ -73,7 +83,13 @@ def _reopen_panel(page: Page, retries: int = 2) -> None:
     """Reopen the HMV panel after insert overlay is dismissed."""
     for attempt in range(retries + 1):
         try:
-            open_panel(page)
+            # If panel is already open, done
+            if _is_panel_open(page):
+                return
+            # Click HMV icon to open
+            hmv = page.locator('div[aria-label="Help me visualize"]')
+            hmv.click()
+            page.wait_for_selector('[role="tab"]:visible', timeout=PANEL_LOAD_TIMEOUT_MS)
             return
         except (PwTimeout, Exception):
             if attempt < retries:
@@ -114,14 +130,11 @@ def _snapshot_preview_srcs(page: Page) -> set[str]:
 
 def fill_and_create(
     page: Page, prompt: str, timeout_ms: int = DEFAULT_TIMEOUT_MS
-) -> None:
+) -> set[str]:
     """Type prompt, click Create, wait for NEW preview image to appear.
 
-    Validated flow (Mar 19, 2026):
-    - keyboard.type() triggers input events that enable the Create button
-    - Generation takes 30-55s, preview appears as img[src*="googleusercontent.com"]
-    - No Insert button appears automatically — must click preview first
-    - Must track stale preview URLs to avoid detecting previous generation's image
+    Returns the stale_srcs set so callers can pass it to _click_preview_image
+    to ensure only the NEW preview is clicked (not stale ones from prior generations).
     """
     # Snapshot existing preview URLs BEFORE creating — used to detect stale images
     stale_srcs = _snapshot_preview_srcs(page)
@@ -140,6 +153,9 @@ def fill_and_create(
     create_btn.click()
 
     # Poll for: NEW preview image appears OR error text
+    viewport = page.viewport_size or {"width": 1280}
+    panel_x = viewport["width"] * 0.6
+
     start = time.monotonic()
     while (time.monotonic() - start) * 1000 < timeout_ms:
         page.wait_for_timeout(5000)
@@ -151,7 +167,7 @@ def fill_and_create(
                 "Generation failed: prompt too vague — try a more detailed prompt"
             )
 
-        # Check for NEW preview image (not in stale_srcs)
+        # Check for NEW preview image in HMV panel (not in stale_srcs)
         preview = page.locator('img[src*="googleusercontent.com"]')
         for i in range(preview.count()):
             try:
@@ -159,8 +175,8 @@ def fill_and_create(
                 if img.is_visible():
                     bb = img.bounding_box()
                     src = img.get_attribute("src") or ""
-                    if bb and bb["width"] > 200 and src not in stale_srcs:
-                        return  # NEW preview appeared — generation complete
+                    if bb and bb["width"] > 100 and bb["x"] > panel_x and src not in stale_srcs:
+                        return stale_srcs  # NEW preview appeared — generation complete
             except Exception:
                 continue
 
@@ -170,15 +186,21 @@ def fill_and_create(
 # --- Tab-specific insert logic ---
 
 
-def _click_preview_image(page: Page) -> None:
-    """Click the generated preview image to open the insert overlay."""
+def _click_preview_image(page: Page, stale_srcs: set[str] | None = None) -> None:
+    """Click the NEW preview image in the HMV panel, skipping stale previews."""
+    viewport = page.viewport_size or {"width": 1280}
+    panel_x_threshold = viewport["width"] * 0.6
+    stale = stale_srcs or set()
+
     preview = page.locator('img[src*="googleusercontent.com"]')
     for i in range(preview.count()):
         try:
             img = preview.nth(i)
             if img.is_visible():
                 bb = img.bounding_box()
-                if bb and bb["width"] > 200:
+                src = img.get_attribute("src") or ""
+                # Must be: in panel area, not stale, reasonable size
+                if bb and bb["width"] > 100 and bb["x"] > panel_x_threshold and src not in stale:
                     page.mouse.click(
                         bb["x"] + bb["width"] / 2,
                         bb["y"] + bb["height"] / 2,
@@ -191,38 +213,61 @@ def _click_preview_image(page: Page) -> None:
 
 
 def _click_insert_button(page: Page, text: str) -> None:
-    """Click an insert button by text, raising GenerationError if not found."""
-    btn = page.get_by_text(text)
-    if btn.count() > 0 and btn.first.is_visible():
-        btn.first.click()
-    else:
-        raise GenerationError(f"'{text}' button not found after clicking preview")
+    """Click an insert button by text, with fallbacks for Google's changing UI."""
+    # Try 1: text match with both "on"/"as" variants
+    variants = [text]
+    if "as new slide" in text:
+        variants.append(text.replace("as new slide", "on new slide"))
+    elif "on new slide" in text:
+        variants.append(text.replace("on new slide", "as new slide"))
+
+    for variant in variants:
+        btn = page.get_by_text(variant)
+        if btn.count() > 0 and btn.first.is_visible():
+            btn.first.click()
+            return
+
+    # Try 2: class selector + dispatchEvent (bypasses visibility check)
+    cls_btn = page.locator(".unifiedPreviewBubbleRightSectionInsertButtonWithMenu")
+    if cls_btn.count() > 0:
+        cls_btn.first.dispatch_event("click")
+        return
+
+    # Try 3: role=button containing "Insert" + dispatchEvent
+    role_btn = page.get_by_role("button", name="Insert")
+    for i in range(role_btn.count()):
+        btn_text = role_btn.nth(i).text_content() or ""
+        if "new slide" in btn_text.lower():
+            role_btn.nth(i).dispatch_event("click")
+            return
+
+    raise GenerationError(f"'{text}' button not found after clicking preview")
 
 
-def _wait_for_slide_insert(page: Page, previous_count: int, timeout_ms: int = 5000) -> None:
+def _wait_for_slide_insert(page: Page, previous_count: int, timeout_ms: int = 10000) -> None:
     """Poll filmstrip until slide count increases or timeout."""
     start = time.monotonic()
     while (time.monotonic() - start) * 1000 < timeout_ms:
-        items = page.locator('[aria-label="filmstrip"] [role="listitem"]')
+        items = page.locator('[aria-label*="filmstrip"] [role="listitem"]')
         if items.count() > previous_count:
             return
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(500)
 
 
-def _insert_on_new_slide(page: Page) -> None:
-    """Click preview then 'Insert as new slide' (used by both infographic and slide tabs)."""
-    filmstrip_items = page.locator('[aria-label="filmstrip"] [role="listitem"]')
+def _insert_on_new_slide(page: Page, stale_srcs: set[str] | None = None) -> None:
+    """Click NEW preview then insert as new slide."""
+    filmstrip_items = page.locator('[aria-label*="filmstrip"] [role="listitem"]')
     previous_count = filmstrip_items.count()
-    _click_preview_image(page)
+    _click_preview_image(page, stale_srcs=stale_srcs)
     _click_insert_button(page, "Insert as new slide")
     _wait_for_slide_insert(page, previous_count)
 
 
-def insert_image(page: Page, insert_as: str = "image") -> None:
-    """Click preview then insert as image or background."""
-    filmstrip_items = page.locator('[aria-label="filmstrip"] [role="listitem"]')
+def insert_image(page: Page, insert_as: str = "image", stale_srcs: set[str] | None = None) -> None:
+    """Click NEW preview then insert as image or background."""
+    filmstrip_items = page.locator('[aria-label*="filmstrip"] [role="listitem"]')
     previous_count = filmstrip_items.count()
-    _click_preview_image(page)
+    _click_preview_image(page, stale_srcs=stale_srcs)
 
     option_text = "Insert as background" if insert_as == "background" else "Insert as image"
 
@@ -241,13 +286,6 @@ def check_url(page: Page, presentation_id: str) -> None:
 
 
 # --- Orchestration ---
-
-
-_INSERT_FN = {
-    Tab.INFOGRAPHIC: lambda page, **_: _insert_on_new_slide(page),
-    Tab.SLIDE: lambda page, **_: _insert_on_new_slide(page),
-    Tab.IMAGE: lambda page, **opts: insert_image(page, opts.get("insert_as", "image")),
-}
 
 
 def gen_single(
@@ -275,11 +313,13 @@ def gen_single(
                 open_panel(page)
 
             select_tab(page, tab.capitalize())
-            fill_and_create(page, prompt, timeout_ms=timeout_ms)
+            stale_srcs = fill_and_create(page, prompt, timeout_ms=timeout_ms)
             check_url(page, presentation_id)
 
-            insert_fn = _INSERT_FN[tab]
-            insert_fn(page, insert_as=insert_as)
+            if tab == Tab.IMAGE:
+                insert_image(page, insert_as=insert_as, stale_srcs=stale_srcs)
+            else:
+                _insert_on_new_slide(page, stale_srcs=stale_srcs)
 
             check_url(page, presentation_id)
             click.echo(f"Done: {tab} generated successfully.")
@@ -296,7 +336,7 @@ def gen_single(
 
 def _navigate_to_slide(page: Page, slide_index: int) -> None:
     """Navigate to a specific slide by index and open panel."""
-    slides = page.locator('[aria-label="filmstrip"] [role="listitem"]')
+    slides = page.locator('[aria-label*="filmstrip"] [role="listitem"]')
     if slide_index <= slides.count():
         slides.nth(slide_index - 1).click()
         page.wait_for_timeout(500)
@@ -346,10 +386,12 @@ def gen_batch(
                     current_tab = slide.tab
 
                 t0 = time.monotonic()
-                fill_and_create(page, slide.prompt, timeout_ms=timeout_ms)
+                stale_srcs = fill_and_create(page, slide.prompt, timeout_ms=timeout_ms)
 
-                insert_fn = _INSERT_FN[slide.tab]
-                insert_fn(page)
+                if slide.tab == Tab.IMAGE:
+                    insert_image(page, stale_srcs=stale_srcs)
+                else:
+                    _insert_on_new_slide(page, stale_srcs=stale_srcs)
 
                 elapsed = time.monotonic() - t0
                 click.echo(f"  {label} done ({elapsed:.1f}s)")
@@ -358,7 +400,7 @@ def gen_batch(
                 page.keyboard.press("End")
                 page.wait_for_timeout(500)
 
-                # Close any lingering insert overlay, then reopen HMV panel
+                # Dismiss any lingering overlay, then reopen HMV panel
                 page.keyboard.press("Escape")
                 page.wait_for_timeout(500)
                 _reopen_panel(page)
@@ -383,8 +425,8 @@ def gen_batch(
                     current_tab = Tab.IMAGE
 
                 t0 = time.monotonic()
-                fill_and_create(page, img.prompt, timeout_ms=timeout_ms)
-                insert_image(page, insert_as=img.insert_as)
+                stale_srcs = fill_and_create(page, img.prompt, timeout_ms=timeout_ms)
+                insert_image(page, insert_as=img.insert_as, stale_srcs=stale_srcs)
 
                 elapsed = time.monotonic() - t0
                 click.echo(f"  {label} done ({elapsed:.1f}s)")
