@@ -23,7 +23,7 @@ def update() -> None:
 
     try:
         result = subprocess.run(
-            ["npm", "view", "@champpaba/gslide", "version"],
+            ["npm", "view", "@champpaba/gslide", "version", "--registry", "https://registry.npmjs.org"],
             capture_output=True,
             text=True,
             timeout=15,
