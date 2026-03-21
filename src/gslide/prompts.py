@@ -48,48 +48,11 @@ class PromptsData:
     images: list[ImagePrompt] = field(default_factory=list)
 
 
-def _is_storytelling_format(raw: dict) -> bool:
-    """Detect storytelling.json format by checking for presentation.topic and slides[].prompt."""
-    return (
-        "presentation" in raw
-        and isinstance(raw["presentation"], dict)
-        and "topic" in raw["presentation"]
-        and "slides" in raw
-    )
-
-
-def _convert_storytelling(raw: dict) -> dict:
-    """Convert storytelling.json format to prompts format."""
-    presentation = raw["presentation"]
-    presentation_id = presentation.get("presentation_id", "")
-
-    if not presentation_id:
-        raise ValidationError(
-            "storytelling.json missing presentation.presentation_id — "
-            "add it before running batch generation"
-        )
-
-    slides = []
-    for s in raw["slides"]:
-        if "prompt" not in s or "tab" not in s:
-            continue
-        slides.append({"tab": s["tab"], "prompt": s["prompt"]})
-
-    return {
-        "presentation_id": presentation_id,
-        "slides": slides,
-    }
-
-
 def load_prompts(path: Path) -> PromptsData:
     raw = json.loads(path.read_text())
 
     if not isinstance(raw, dict):
         raise ValidationError("Prompts file must be a JSON object")
-
-    # Auto-detect storytelling.json format and convert
-    if _is_storytelling_format(raw):
-        raw = _convert_storytelling(raw)
 
     if "presentation_id" not in raw:
         raise ValidationError("Missing required field: presentation_id")
