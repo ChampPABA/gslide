@@ -97,20 +97,74 @@ gws slides presentations create --json '{"title": "My Presentation"}'
 ```
 Or ask the user for the presentation URL/ID.
 
+**If using storytelling.json:** After creating the presentation, write the `presentation_id` back into `storytelling.json` under `presentation.presentation_id` so the batch command can read it directly. Use a simple python or jq one-liner to update the field — do not rewrite the entire file.
+
 ### 4. Generate Slides
 For each slide, run gslide gen with a detailed prompt.
 
 Each prompt should be a single string describing the slide. Generation takes 30-60 seconds per slide. The tool handles: open panel → select tab → type prompt → click Create → wait for preview → click preview → Insert on new slide.
 
 ### 5. Report Results
+
 After generation, give user the presentation URL:
 ```
 https://docs.google.com/presentation/d/{ID}/edit
 ```
 
-## prompts.json Format
+**If input was storytelling.json** (has script, transitions, headlines), also export results:
 
-For batch generation, create a JSON file:
+1. **Derive folder name** from `presentation.topic` (slugify: lowercase, hyphens, no special chars). Example: "3D Landing Page Workflow" → `results/3d-landing-page-workflow/`
+
+2. **Export `speaker-notes.md`** — a human-readable file:
+   ```markdown
+   # [Presentation Title]
+
+   Presentation: https://docs.google.com/presentation/d/{ID}/edit
+   Generated: YYYY-MM-DD
+
+   ---
+
+   ## Slide 1: [headline]
+   **Transition in:** [transition_in]
+
+   [script content]
+
+   **Transition out:** [transition_out]
+
+   ---
+   ## Slide 2: [headline]
+   ...
+   ```
+
+3. **Move storytelling.json** into the results folder (not copy — clean up root).
+
+4. **Report:**
+   ```
+   ✅ Generated X slides
+   📎 https://docs.google.com/presentation/d/{ID}/edit
+   📁 results/<name>/speaker-notes.md — บทพูด
+   📁 results/<name>/storytelling.json — สำหรับ regen
+   ```
+
+**If input was prompts.json or single gen** — just report the presentation URL. No results/ export (no script data to export).
+
+## Batch Input Formats
+
+gslide batch accepts two JSON formats — it auto-detects which one you're using.
+
+### Format 1: storytelling.json (preferred when coming from /storytelling)
+
+If `storytelling.json` exists from the `/storytelling` skill, use it directly — no need to create a separate prompts file. Just make sure `presentation.presentation_id` is set:
+
+```bash
+gslide gen batch --file storytelling.json --timeout 120 --continue-on-error
+```
+
+The CLI auto-detects the storytelling format (has `presentation.topic` + `slides[].prompt`) and extracts `tab` + `prompt` from each slide.
+
+### Format 2: prompts.json (standalone)
+
+For quick generation without storytelling planning:
 
 ```json
 {
