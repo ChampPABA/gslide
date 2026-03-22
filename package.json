@@ -6,6 +6,7 @@
     "gslide": "./bin/gslide.mjs"
   },
   "scripts": {
+    "version": "python3 scripts/sync-version.py && git add src/gslide/__init__.py",
     "postinstall": "bash scripts/postinstall.sh"
   },
   "files": [
