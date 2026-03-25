@@ -1,4 +1,4 @@
 """gslide — CLI for automating Google Slides 'Help me visualise' feature."""
 
-__version__ = "0.1.17"
+__version__ = "0.1.18"
 __all__ = ["__version__"]
