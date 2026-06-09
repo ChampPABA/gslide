@@ -1,57 +1,81 @@
 ## Purpose
 
-Manages Google account authentication via a headed browser login flow, persisting session cookies as a Playwright storage state file for use by other commands.
+Manages Google account authentication via a headed browser login flow, persisting the session as a Chromium persistent user-data profile reused by other commands. Headless runs use Chromium's new headless mode and the active inner profile so Google does not bounce them to the account chooser.
 
 ## Requirements
 
 ### Requirement: Headed browser login flow
-The system SHALL launch a headed (visible) Chromium browser, navigate to Google Slides, and wait for the user to manually complete Google login. After the user presses ENTER, the system SHALL extract all cookies (including httpOnly) and save them as a Playwright storage state file.
+The system SHALL launch a headed (visible) Chromium browser using a persistent user-data directory, navigate to Google Slides, and wait for the user to manually complete Google login. After the user presses ENTER, the system SHALL close the browser; the Chromium profile persists the session automatically (no manual cookie extraction).
 
 #### Scenario: First-time login
 - **WHEN** user runs `gslide auth login`
-- **THEN** system launches headed browser navigating to `https://docs.google.com/presentation/`
+- **THEN** system launches headed browser with persistent profile at `~/.gslide/profile`, navigating to `https://docs.google.com/presentation/`
 - **THEN** system prints instructions and waits for the user to press ENTER
-- **THEN** system saves storage state to `~/.gslide/storage_state.json`
-- **THEN** system prints confirmation with authenticated email if detectable
+- **THEN** on ENTER, system closes the browser and the session is persisted in the profile directory
+- **THEN** system prints confirmation
+
+#### Scenario: Migration from legacy storage state
+- **WHEN** user runs `gslide auth login` and a legacy `~/.gslide/storage_state.json` exists
+- **THEN** system prints a one-time notice that re-login is required for the new persistent-profile format
+- **THEN** system proceeds with the persistent-profile login flow
 
 #### Scenario: User aborts with Ctrl+C
 - **WHEN** user presses Ctrl+C during login
-- **THEN** system closes browser and exits cleanly without saving storage state
+- **THEN** system closes browser and exits cleanly
+- **THEN** if the profile directory was created only by this aborted launch, system removes it so a cancelled login is not treated as logged in
 
-### Requirement: Session persistence via storage state
-The system SHALL persist browser session as a Playwright storage state JSON file at `~/.gslide/storage_state.json`. This file contains cookies for `.google.com`, `docs.google.com`, and `accounts.google.com` domains.
+### Requirement: Session persistence via persistent profile
+The system SHALL persist the browser session as a Chromium persistent user-data directory at `~/.gslide/profile`, launched via Playwright `launch_persistent_context`. Chromium natively persists and rotates Google session cookies (including `__Secure-1PSIDTS`) across runs.
 
-#### Scenario: Storage state file created
+Non-headed runs SHALL use Chromium's new headless mode (`--headless=new`); the legacy headless shell is detected by Google and bounced to the account chooser even with a valid session. The launch SHALL include `--disable-blink-features=AutomationControlled` and an explicit viewport (the right-sidebar "Help me visualize" icon is off-canvas at the default size).
+
+Google's interactive login shards the signed-in account into an inner profile directory (e.g. `Profile 1`) rather than `Default`. The system SHALL record the active inner profile at login (`~/.gslide/active-profile`) and pass it as `--profile-directory` on every launch so headless runs open the same profile that holds the session.
+
+#### Scenario: Profile directory created on login
 - **WHEN** login completes successfully
-- **THEN** `~/.gslide/storage_state.json` exists and contains valid JSON with cookies array
+- **THEN** `~/.gslide/profile` exists and contains a Chromium profile (cookies, local storage)
+- **THEN** `~/.gslide/active-profile` records the inner profile holding the session
 
-#### Scenario: Storage state directory auto-created
-- **WHEN** `~/.gslide/` directory does not exist
-- **THEN** system creates the directory before saving storage state
+#### Scenario: Session reused across runs without re-login
+- **WHEN** a command runs after a prior successful login, in a new process
+- **THEN** system reuses the persistent profile and does not require re-login while the Google session remains valid
+
+#### Scenario: Headless run reaches the editor
+- **WHEN** a non-headed command opens a presentation after a valid login
+- **THEN** the browser launches in new headless mode with the recorded inner profile
+- **THEN** Google loads the editor without redirecting to `accounts.google.com`
+
+#### Scenario: Headed override via environment
+- **WHEN** `GSLIDE_HEADED=1` is set for any command
+- **THEN** the browser launches headed (visible) regardless of the command default
+
+#### Scenario: Profile in use by another process
+- **WHEN** another gslide process holds the profile lock
+- **THEN** system prints a clear error indicating the profile is in use and exits non-zero (no confusing crash)
 
 ### Requirement: Session status check
-The system SHALL verify if a saved session is still valid by loading storage state into a headless browser and checking if Google Slides loads without redirecting to login.
+The system SHALL verify if the saved session is still valid by launching the persistent profile in a headless browser and checking if Google Slides loads without redirecting to login.
 
 #### Scenario: Valid session
-- **WHEN** user runs `gslide auth status` and storage state exists with valid cookies
+- **WHEN** user runs `gslide auth status` and the profile holds a valid session
 - **THEN** system prints "Session valid" and exits with code 0
 
 #### Scenario: Expired session
-- **WHEN** user runs `gslide auth status` and cookies have expired
+- **WHEN** user runs `gslide auth status` and the session redirects to `accounts.google.com`
 - **THEN** system prints "Session expired. Run: gslide auth login" and exits with code 1
 
-#### Scenario: No session file
-- **WHEN** user runs `gslide auth status` and `~/.gslide/storage_state.json` does not exist
+#### Scenario: No profile
+- **WHEN** user runs `gslide auth status` and `~/.gslide/profile` does not exist
 - **THEN** system prints "Not logged in. Run: gslide auth login" and exits with code 1
 
 ### Requirement: Logout
-The system SHALL delete the storage state file when user logs out.
+The system SHALL delete the persistent profile directory and the active-profile marker when the user logs out.
 
 #### Scenario: Logout with existing session
 - **WHEN** user runs `gslide auth logout`
-- **THEN** system deletes `~/.gslide/storage_state.json`
+- **THEN** system deletes `~/.gslide/profile` and `~/.gslide/active-profile`
 - **THEN** system prints "Logged out"
 
 #### Scenario: Logout without session
-- **WHEN** user runs `gslide auth logout` and no storage state file exists
+- **WHEN** user runs `gslide auth logout` and no profile exists
 - **THEN** system prints "Not logged in" and exits normally
