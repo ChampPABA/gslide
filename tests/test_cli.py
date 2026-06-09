@@ -71,23 +71,40 @@ class TestGenArgValidation:
         assert "infographic" in result.output
         assert "slide" in result.output
 
+    def test_batch_start_from_passed_through(self, runner: CliRunner, tmp_path: Path) -> None:
+        prompts = {
+            "presentation_id": "abc123",
+            "slides": [{"tab": "slide", "prompt": "A"}, {"tab": "slide", "prompt": "B"}],
+        }
+        prompts_file = tmp_path / "prompts.json"
+        prompts_file.write_text(json.dumps(prompts))
+
+        with patch("gslide.gen.gen_batch") as mock_batch:
+            result = runner.invoke(
+                cli, ["gen", "batch", "--file", str(prompts_file), "--start-from", "2"]
+            )
+
+        assert result.exit_code == 0
+        assert mock_batch.call_args.kwargs["start_from"] == 2
+
 
 class TestLogoutCommand:
     def test_logout_when_logged_in(self, runner: CliRunner, tmp_path: Path) -> None:
-        state_file = tmp_path / "storage_state.json"
-        state_file.write_text("{}")
+        profile = tmp_path / "profile"
+        profile.mkdir()
+        (profile / "Cookies").write_text("x")
 
-        with patch("gslide.auth.get_storage_path", return_value=state_file):
+        with patch("gslide.auth.get_profile_dir", return_value=profile):
             result = runner.invoke(cli, ["auth", "logout"])
 
         assert result.exit_code == 0
         assert "Logged out" in result.output
-        assert not state_file.exists()
+        assert not profile.exists()
 
     def test_logout_when_not_logged_in(self, runner: CliRunner, tmp_path: Path) -> None:
-        state_file = tmp_path / "nonexistent.json"
+        profile = tmp_path / "nonexistent-profile"
 
-        with patch("gslide.auth.get_storage_path", return_value=state_file):
+        with patch("gslide.auth.get_profile_dir", return_value=profile):
             result = runner.invoke(cli, ["auth", "logout"])
 
         assert result.exit_code == 0

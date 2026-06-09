@@ -151,11 +151,10 @@ class TestGenSingle:
         mock_browser_cls.return_value.__enter__ = MagicMock(return_value=mock_context)
         mock_browser_cls.return_value.__exit__ = MagicMock(return_value=None)
 
-        storage = tmp_path / ".gslide" / "storage_state.json"
-        storage.parent.mkdir(parents=True)
-        storage.write_text("{}")
+        profile = tmp_path / ".gslide" / "profile"
+        profile.mkdir(parents=True)
 
-        with patch("gslide.gen.require_login", return_value=storage):
+        with patch("gslide.gen.require_login", return_value=profile):
             from gslide.gen import gen_single
             gen_single("abc123", "infographic", "Show Q4 revenue")
 
@@ -177,9 +176,8 @@ class TestGenBatch:
         mock_browser_cls.return_value.__enter__ = MagicMock(return_value=mock_context)
         mock_browser_cls.return_value.__exit__ = MagicMock(return_value=None)
 
-        storage = tmp_path / ".gslide" / "storage_state.json"
-        storage.parent.mkdir(parents=True)
-        storage.write_text("{}")
+        profile = tmp_path / ".gslide" / "profile"
+        profile.mkdir(parents=True)
 
         prompts_data = PromptsData(
             presentation_id="abc123",
@@ -189,7 +187,7 @@ class TestGenBatch:
             ],
         )
 
-        with patch("gslide.gen.require_login", return_value=storage):
+        with patch("gslide.gen.require_login", return_value=profile):
             gen_batch(prompts_data)
 
         mock_page.goto.assert_called_once()
@@ -213,9 +211,8 @@ class TestGenBatch:
         mock_browser_cls.return_value.__enter__ = MagicMock(return_value=mock_context)
         mock_browser_cls.return_value.__exit__ = MagicMock(return_value=None)
 
-        storage = tmp_path / ".gslide" / "storage_state.json"
-        storage.parent.mkdir(parents=True)
-        storage.write_text("{}")
+        profile = tmp_path / ".gslide" / "profile"
+        profile.mkdir(parents=True)
 
         prompts_data = PromptsData(
             presentation_id="abc123",
@@ -225,10 +222,61 @@ class TestGenBatch:
             ],
         )
 
-        with patch("gslide.gen.require_login", return_value=storage):
+        with patch("gslide.gen.require_login", return_value=profile):
             gen_batch(prompts_data, continue_on_error=True)
 
         # Both fill_and_create calls were attempted
         assert mock_fill.call_count == 2
         # Second slide's insert was called (first failed before insert)
         mock_insert_on_new_slide.assert_called_once()
+
+    @patch("gslide.gen.BrowserSession")
+    @patch("gslide.gen.fill_and_create", return_value=set())
+    @patch("gslide.gen._insert_on_new_slide")
+    def test_batch_start_from_skips_earlier_slides(
+        self,
+        mock_insert: MagicMock,
+        mock_fill: MagicMock,
+        mock_browser_cls: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        from gslide.gen import gen_batch
+        from gslide.prompts import PromptsData, SlidePrompt
+
+        mock_context = MagicMock()
+        mock_page = _make_page_mock()
+        mock_context.new_page.return_value = mock_page
+        mock_browser_cls.return_value.__enter__ = MagicMock(return_value=mock_context)
+        mock_browser_cls.return_value.__exit__ = MagicMock(return_value=None)
+
+        profile = tmp_path / ".gslide" / "profile"
+        profile.mkdir(parents=True)
+
+        prompts_data = PromptsData(
+            presentation_id="abc123",
+            slides=[
+                SlidePrompt(tab="slide", prompt="Slide 1 (skip)"),
+                SlidePrompt(tab="slide", prompt="Slide 2 (run)"),
+                SlidePrompt(tab="slide", prompt="Slide 3 (run)"),
+            ],
+        )
+
+        with patch("gslide.gen.require_login", return_value=profile):
+            gen_batch(prompts_data, start_from=2)
+
+        # Only slides 2 and 3 generated; slide 1 skipped
+        assert mock_fill.call_count == 2
+
+
+class TestAssertSession:
+    def test_raises_on_login_redirect(self) -> None:
+        from gslide.gen import _assert_session
+
+        page = _make_page_mock(url="https://accounts.google.com/signin")
+        with pytest.raises(GenerationError, match="Session expired"):
+            _assert_session(page)
+
+    def test_passes_on_valid_url(self) -> None:
+        from gslide.gen import _assert_session
+
+        _assert_session(_make_page_mock())  # should not raise

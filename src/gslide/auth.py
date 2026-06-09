@@ -1,5 +1,6 @@
-"""Authentication session management — file I/O and browser operations."""
+"""Authentication session management — persistent Chromium profile."""
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -8,30 +9,41 @@ import click
 SLIDES_URL = "https://docs.google.com/presentation/"
 
 
-def get_storage_path() -> Path:
+def get_profile_dir() -> Path:
+    return Path.home() / ".gslide" / "profile"
+
+
+def _legacy_storage_state() -> Path:
     return Path.home() / ".gslide" / "storage_state.json"
 
 
 def is_logged_in() -> bool:
-    return get_storage_path().exists()
+    return get_profile_dir().exists()
 
 
 def require_login() -> Path:
-    """Return storage path or exit if not logged in."""
-    storage_path = get_storage_path()
-    if not storage_path.exists():
+    """Return profile dir or exit if not logged in."""
+    profile_dir = get_profile_dir()
+    if not profile_dir.exists():
         click.echo("Not logged in. Run: gslide auth login", err=True)
         sys.exit(1)
-    return storage_path
+    return profile_dir
 
 
-def delete_storage_state() -> None:
-    get_storage_path().unlink(missing_ok=True)
+def delete_profile() -> None:
+    shutil.rmtree(get_profile_dir(), ignore_errors=True)
 
 
 def login() -> None:
-    """Launch headed browser for Google login, save storage state on success."""
-    from gslide.browser import BrowserSession, save_session
+    """Launch headed browser for Google login; the persistent profile saves the session."""
+    from gslide.browser import BrowserSession
+
+    if _legacy_storage_state().exists():
+        click.echo(
+            "Note: gslide now uses a persistent browser profile. "
+            "A one-time re-login is required (your old session file is no longer used)."
+        )
+        click.echo("")
 
     click.echo("Opening browser for Google login...")
     click.echo("")
@@ -41,7 +53,9 @@ def login() -> None:
     click.echo("3. Press ENTER here to save and close")
     click.echo("")
 
-    with BrowserSession(headed=True) as context:
+    profile_existed = get_profile_dir().exists()
+
+    with BrowserSession(get_profile_dir(), headed=True) as context:
         page = context.new_page()
         page.goto(SLIDES_URL)
 
@@ -49,19 +63,22 @@ def login() -> None:
             input("[Press ENTER when logged in] ")
         except (KeyboardInterrupt, EOFError):
             click.echo("\nAborted.", err=True)
+            # The launch freshly created the profile dir; remove it so a
+            # cancelled login doesn't masquerade as a logged-in session.
+            if not profile_existed:
+                delete_profile()
             sys.exit(1)
 
-        save_session(context, get_storage_path())
-        click.echo("Session saved.")
+    click.echo("Session saved.")
 
 
 def status() -> None:
-    """Check if saved session is still valid."""
-    path = require_login()
+    """Check if the saved session is still valid."""
+    profile_dir = require_login()
 
     from gslide.browser import BrowserSession
 
-    with BrowserSession(headed=False, storage_state=path) as context:
+    with BrowserSession(profile_dir, headed=False) as context:
         page = context.new_page()
         page.goto(SLIDES_URL, wait_until="domcontentloaded")
         # Google Slides never reaches networkidle — wait for redirect or UI instead
@@ -75,10 +92,10 @@ def status() -> None:
 
 
 def logout() -> None:
-    """Delete saved session."""
+    """Delete the persistent profile."""
     if not is_logged_in():
         click.echo("Not logged in.")
         return
 
-    delete_storage_state()
+    delete_profile()
     click.echo("Logged out.")

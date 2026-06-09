@@ -94,6 +94,10 @@ Pattern เหมือน notebooklm-py — login ครั้งเดีย�
    → เก็บไว้ที่ ~/.gslide/storage_state.json
 ```
 
+> **หมายเหตุ (production):** เลิกใช้ storage state file แบบ snapshot แล้ว — เปลี่ยนเป็น
+> persistent Chromium profile ที่ `~/.gslide/profile` (`launch_persistent_context`)
+> เพื่อให้ Chromium หมุน/persist cookie ของ Google เองข้าม run แก้ปัญหา session หลุดบ่อย
+
 ### สิ่งที่เรียนรู้จาก POC
 
 - **ต้องใช้ `cookies get --json`** — ได้ httpOnly cookies ครบ (SID, HSID, SSID, SAPISID)

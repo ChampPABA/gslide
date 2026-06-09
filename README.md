@@ -27,7 +27,7 @@ The postinstall script automatically sets up:
 gslide auth login
 ```
 
-This opens a Chromium browser for you to sign in to your Google account. The session is saved locally for future use.
+This opens a Chromium browser for you to sign in to your Google account. The session is saved locally as a persistent Chromium profile (`~/.gslide/profile`) and reused on future runs, so Google's rotating session cookies stay fresh.
 
 ### 2. Check auth status
 

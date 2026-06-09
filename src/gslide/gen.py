@@ -285,6 +285,12 @@ def check_url(page: Page, presentation_id: str) -> None:
         raise GenerationError("Browser navigated away from target presentation")
 
 
+def _assert_session(page: Page) -> None:
+    """Raise if the session expired mid-run (redirected to Google login)."""
+    if "accounts.google.com" in page.url:
+        raise GenerationError("Session expired mid-batch. Run: gslide auth login")
+
+
 # --- Orchestration ---
 
 
@@ -298,10 +304,10 @@ def gen_single(
     insert_as: str = "image",
 ) -> None:
     """Generate a single slide/infographic/image via browser automation."""
-    storage_path = require_login()
+    profile_dir = require_login()
     timeout_ms = timeout * 1000
 
-    with BrowserSession(storage_state=storage_path) as context:
+    with BrowserSession(profile_dir) as context:
         page = context.new_page()
 
         try:
@@ -352,16 +358,17 @@ def gen_batch(
     *,
     continue_on_error: bool = False,
     timeout: int = 120,
+    start_from: int = 1,
 ) -> None:
     """Generate all slides from prompts data in a single browser session."""
-    storage_path = require_login()
+    profile_dir = require_login()
     timeout_ms = timeout * 1000
     total_slides = len(prompts_data.slides)
     total_images = len(prompts_data.images)
     errors: list[tuple[int, str, str]] = []
     start_time = time.monotonic()
 
-    with BrowserSession(storage_state=storage_path) as context:
+    with BrowserSession(profile_dir) as context:
         page = context.new_page()
 
         try:
@@ -373,12 +380,22 @@ def gen_batch(
 
         current_tab: str | None = None
 
+        # Move cursor to the last slide so the first generation appends at the end.
+        # Critical for --start-from resume: skipped slides don't run their trailing
+        # End-press, so without this the first resumed slide would insert after the
+        # currently-selected slide (slide 1) instead of after the existing tail.
+        page.keyboard.press("End")
+        page.wait_for_timeout(500)
+
         # Phase 1: Generate slides
         for i, slide in enumerate(prompts_data.slides, 1):
+            if i < start_from:
+                continue
             label = f"[{i}/{total_slides}]"
             click.echo(f"  {label} {slide.tab}: {slide.prompt[:50]}...")
 
             try:
+                _assert_session(page)
                 check_url(page, prompts_data.presentation_id)
 
                 if slide.tab != current_tab:
@@ -408,7 +425,12 @@ def gen_batch(
             except Exception as e:
                 errors.append((i, slide.tab, str(e)))
                 click.echo(f"  {label} FAILED: {e}")
+                try:
+                    page.screenshot(path=f"/tmp/gslide_error_slide_{i}.png")
+                except Exception:
+                    pass
                 if not continue_on_error:
+                    click.echo(f"  Resume with: --start-from {i}")
                     break
 
         # Phase 2: Generate images
@@ -417,6 +439,7 @@ def gen_batch(
             click.echo(f"  {label} slide {img.target_slide}: {img.prompt[:50]}...")
 
             try:
+                _assert_session(page)
                 check_url(page, prompts_data.presentation_id)
                 _navigate_to_slide(page, img.target_slide)
 
@@ -434,6 +457,10 @@ def gen_batch(
             except Exception as e:
                 errors.append((total_slides + i, "image", str(e)))
                 click.echo(f"  {label} FAILED: {e}")
+                try:
+                    page.screenshot(path=f"/tmp/gslide_error_image_{i}.png")
+                except Exception:
+                    pass
                 if not continue_on_error:
                     break
 

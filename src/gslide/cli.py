@@ -170,7 +170,8 @@ def image(
 @click.option("--continue-on-error", is_flag=True, help="Continue on individual slide errors")
 @click.option("--dry-run", is_flag=True, help="Validate and show summary without generating")
 @click.option("--timeout", default=60, type=int, help="Timeout per slide in seconds")
-def batch(file_path: str, continue_on_error: bool, dry_run: bool, timeout: int) -> None:
+@click.option("--start-from", default=1, type=int, help="Resume from slide N (1-based), skipping earlier slides")
+def batch(file_path: str, continue_on_error: bool, dry_run: bool, timeout: int, start_from: int) -> None:
     """Generate slides from a prompts.json file."""
     from gslide.prompts import load_prompts, ValidationError
 
@@ -190,4 +191,4 @@ def batch(file_path: str, continue_on_error: bool, dry_run: bool, timeout: int) 
 
     from gslide.gen import gen_batch
 
-    gen_batch(prompts_data, continue_on_error=continue_on_error, timeout=timeout)
+    gen_batch(prompts_data, continue_on_error=continue_on_error, timeout=timeout, start_from=start_from)
