@@ -31,7 +31,32 @@ def require_login() -> Path:
 
 
 def delete_profile() -> None:
+    from gslide.browser import active_profile_marker
+
     shutil.rmtree(get_profile_dir(), ignore_errors=True)
+    active_profile_marker(get_profile_dir()).unlink(missing_ok=True)
+
+
+def snapshot_active_profile() -> None:
+    """Record which inner Chromium profile holds the session, for headless reuse.
+
+    Google's login shards the signed-in account into a profile like "Profile 1".
+    We persist Local State's last_used name so subsequent headless runs open the
+    same profile instead of the empty "Default".
+    """
+    import json
+
+    from gslide.browser import active_profile_marker
+
+    local_state = get_profile_dir() / "Local State"
+    if not local_state.exists():
+        return
+    try:
+        last_used = json.loads(local_state.read_text())["profile"]["last_used"]
+    except Exception:
+        return
+    if last_used:
+        active_profile_marker(get_profile_dir()).write_text(last_used)
 
 
 def login() -> None:
@@ -69,6 +94,8 @@ def login() -> None:
                 delete_profile()
             sys.exit(1)
 
+    # Profile/Local State are flushed on context close — snapshot now.
+    snapshot_active_profile()
     click.echo("Session saved.")
 
 

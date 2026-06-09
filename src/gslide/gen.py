@@ -72,6 +72,11 @@ def open_panel(page: Page) -> None:
     if _is_panel_open(page):
         return
 
+    # A fresh deck shows a "Let's start creating" onboarding modal that overlays
+    # and intercepts clicks on the sidebar icon — dismiss it first.
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(500)
+
     hmv = page.locator('div[aria-label="Help me visualize"]')
     hmv.click()
 

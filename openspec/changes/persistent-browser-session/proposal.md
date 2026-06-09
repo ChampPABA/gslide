@@ -11,7 +11,10 @@
 
 - เปลี่ยน session persistence จาก Playwright `storage_state.json` → **persistent browser profile** (`launch_persistent_context(user_data_dir=~/.gslide/profile)`)
 - ลบฟังก์ชัน `save_session()` (persistent context persist เอง ไม่ต้อง save มือ)
-- เพิ่ม anti-detection arg `--disable-blink-features=AutomationControlled` ตอน launch
+- ใช้ **new headless mode (`--headless=new`)** สำหรับ gen/status — legacy headless shell โดน Google detect เด้งไป account chooser แม้ session ดี
+- auto-detect inner profile (`Profile 1`) ที่ Google login shard ไป แล้วบันทึก marker `~/.gslide/active-profile` ส่งเป็น `--profile-directory` ทุก launch
+- เพิ่ม anti-detection arg `--disable-blink-features=AutomationControlled` + explicit viewport (ไม่งั้นปุ่ม HMV ใน sidebar อยู่นอกจอ คลิกไม่ได้)
+- dismiss onboarding modal ("Let's start creating") ก่อนคลิก HMV บน deck เปล่า
 - เพิ่ม env var `GSLIDE_HEADED=1` บังคับ headed ทุกคำสั่ง (debug / กรณีโดน detect)
 - **Mid-batch resilience**: เช็ค session ต้นทุกรอบใน batch loop, เพิ่ม `--start-from N` เพื่อ resume (presentation = checkpoint), screenshot รายแต่ละ slide ที่ fail, แสดง resume hint
 - Migration: ผู้ใช้เดิมต้อง login ใหม่ 1 ครั้ง (แจ้งเตือนเมื่อพบไฟล์ storage_state.json เก่า)

@@ -20,7 +20,16 @@ The system SHALL launch a headed (visible) Chromium browser using a persistent u
 - **THEN** system closes browser and exits cleanly
 
 ### Requirement: Session persistence via persistent profile
-The system SHALL persist the browser session as a Chromium persistent user-data directory at `~/.gslide/profile`, launched via Playwright `launch_persistent_context`. Chromium natively persists and rotates Google session cookies (including `__Secure-1PSIDTS`) across runs. The launch SHALL include the argument `--disable-blink-features=AutomationControlled` to reduce automation detection.
+The system SHALL persist the browser session as a Chromium persistent user-data directory at `~/.gslide/profile`, launched via Playwright `launch_persistent_context`. Chromium natively persists and rotates Google session cookies (including `__Secure-1PSIDTS`) across runs.
+
+Non-headed runs SHALL use Chromium's new headless mode (`--headless=new`); the legacy headless shell is detected by Google and bounced to the account chooser even with a valid session. The launch SHALL include `--disable-blink-features=AutomationControlled` and an explicit viewport (the right-sidebar "Help me visualize" icon is off-canvas at the default size).
+
+Google's interactive login shards the signed-in account into an inner profile directory (e.g. `Profile 1`) rather than `Default`. The system SHALL record the active inner profile at login (`~/.gslide/active-profile`) and pass it as `--profile-directory` on every launch so headless runs open the same profile that holds the session.
+
+#### Scenario: Headless run reaches the editor
+- **WHEN** a non-headed command opens a presentation after a valid login
+- **THEN** the browser launches in new headless mode with the recorded inner profile
+- **THEN** Google loads the editor without redirecting to `accounts.google.com`
 
 #### Scenario: Profile directory created on login
 - **WHEN** login completes successfully
